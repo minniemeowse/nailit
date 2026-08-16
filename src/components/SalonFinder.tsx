@@ -22,19 +22,24 @@ import {
   Layers,
   Heart,
   Plus,
-  Share2,
   Building2,
   Home,
   Instagram,
-  Filter
+  Filter,
+  CheckSquare,
+  Square as SquareIcon
 } from "lucide-react";
 import L from "leaflet";
 import { NailCollection } from "../types";
 import {
   SalonInfo,
   SalonReview,
+  NailShapeFilter,
+  NailLengthFilter,
+  ComplexityFilter,
   getStoredSalons,
-  saveCustomHBNS
+  saveCustomHBNS,
+  calculateDynamicSalonPrice
 } from "../utils/sgSalonsData";
 
 interface SalonFinderProps {
@@ -44,7 +49,7 @@ interface SalonFinderProps {
   triggerToast: (msg: string) => void;
 }
 
-export function SalonFinder({ collection, shape, length, triggerToast }: SalonFinderProps) {
+export function SalonFinder({ collection, shape: initialShape, length: initialLength, triggerToast }: SalonFinderProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -54,7 +59,13 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<"all" | "commercial" | "homebased">("all");
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
+
+  // 1. Nail Shape Criteria
+  const [selectedShape, setSelectedShape] = useState<NailShapeFilter>("almond");
+  // 2. Nail Length Criteria
+  const [selectedLength, setSelectedLength] = useState<NailLengthFilter>("short");
+  // 3. Design Complexity Criteria
+  const [selectedComplexity, setSelectedComplexity] = useState<ComplexityFilter>("solid");
 
   // Registration Modal State for Home-Based Nail Techs
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -64,7 +75,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
   const [newStudioMrt, setNewStudioMrt] = useState("");
   const [newStudioWhatsapp, setNewStudioWhatsapp] = useState("");
   const [newStudioInstagram, setNewStudioInstagram] = useState("");
-  const [newStudioPriceRange, setNewStudioPriceRange] = useState("$40 - $75");
+  const [newStudioBasePrice, setNewStudioBasePrice] = useState("38");
   const [newStudioSpecialties, setNewStudioSpecialties] = useState("Korean Syrup Jelly, 3D Charms, Gel-X");
   const [newStudioVibe, setNewStudioVibe] = useState("Cozy private home-based studio with Netflix");
 
@@ -82,7 +93,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
 
   const selectedSalon = salonsList.find((s) => s.id === selectedSalonId) || salonsList[0];
 
-  // Filter salons by search, district, type, specialty
+  // Filter salons by search, district, type
   const filteredSalons = salonsList.filter((salon) => {
     const matchesSearch =
       searchQuery === "" ||
@@ -93,38 +104,11 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
 
     const matchesDistrict = selectedDistrict === "all" || salon.district === selectedDistrict;
     const matchesType = selectedType === "all" || salon.type === selectedType;
-    const matchesSpecialty =
-      selectedSpecialty === "all" || salon.specialties.some((s) => s.toLowerCase().includes(selectedSpecialty.toLowerCase()));
 
-    return matchesSearch && matchesDistrict && matchesType && matchesSpecialty;
+    return matchesSearch && matchesDistrict && matchesType;
   });
 
-  // Calculate dynamic quote for the active nail collection
-  const calculateAIQuote = (salon: SalonInfo) => {
-    let base = salon.type === "homebased" ? 38 : 65;
-    const nailCount = collection.nails.length || 10;
-    const has3D = collection.nails.some((n) => n.decorations && n.decorations.includes("3D"));
-    const hasFrench = collection.nails.some((n) => n.artStyle === "french");
-    const hasChrome = collection.nails.some((n) => n.finish === "chrome" || n.finish === "holographic");
-
-    if (has3D) base += salon.type === "homebased" ? 18 : 28;
-    if (hasFrench) base += 15;
-    if (hasChrome) base += 12;
-
-    return {
-      price: base,
-      details: [
-        `Base ${salon.type === "homebased" ? "Home-Based" : "Salon"} Gel Manicure: $${salon.type === "homebased" ? 38 : 65}`,
-        hasFrench ? "Classic / Chrome French Smile Line: +$15" : null,
-        has3D ? "Hand-Placed 3D Acrylic & Resin Charms: +$" + (salon.type === "homebased" ? 18 : 28) : null,
-        hasChrome ? "Aurora / Glazed Chrome Powder Burnish: +$12" : null,
-        `Shape & Structure: ${shape} (${length})`
-      ].filter(Boolean) as string[],
-      consultationMsg: `Hi ${salon.name}! 💅 I'd like to book an appointment for this nail design set:\n• Design: ${collection.designName || "Custom Press-On / Gel Set"}\n• Shape & Length: ${shape} (${length})\n• Style: ${hasFrench ? "French Tips + " : ""}${has3D ? "3D Charms + " : ""}${hasChrome ? "Chrome Glaze" : "Solid Gel"}\n• Estimated AI Quote: ~$${base}\nCould I check your next available slots? Thank you! 💕`
-    };
-  };
-
-  // Initialize Leaflet Map
+  // Initialize and update Leaflet Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -157,59 +141,84 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    // Custom Pink / Lavender Marker Icon generator
-    const createCustomIcon = (isHomeBased: boolean, isSelected: boolean) => {
-      const bgColor = isSelected ? "#E11D48" : isHomeBased ? "#9333EA" : "#EC4899";
-      const iconSymbol = isHomeBased ? "🏡" : "💅";
+    // Custom Price Pill Marker generator (Pastel Pink for Commercial, Pastel Mint for Home-Based)
+    const createPriceMarkerIcon = (salon: SalonInfo, price: number, isSelected: boolean) => {
+      const isHome = salon.type === "homebased";
+      
+      // Pastel Pink: Commercial Salons (#FCE7F3 bg, #F472B6 border, #9D174D text)
+      // Pastel Mint: Home-Based Studios (#D1FAE5 bg, #34D399 border, #065F46 text)
+      const bg = isHome ? "#D1FAE5" : "#FCE7F3";
+      const border = isSelected ? (isHome ? "#059669" : "#E11D48") : isHome ? "#34D399" : "#F472B6";
+      const text = isHome ? "#065F46" : "#9D174D";
+      const shadow = isSelected ? "0 8px 16px rgba(0,0,0,0.35)" : "0 3px 8px rgba(0,0,0,0.18)";
 
       return L.divIcon({
-        className: "custom-leaflet-marker",
+        className: "custom-price-marker",
         html: `
           <div style="
-            position: relative;
-            width: ${isSelected ? "38px" : "32px"};
-            height: ${isSelected ? "38px" : "32px"};
-            background: ${bgColor};
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            border: 2px solid #FFFFFF;
-            transition: all 0.2s ease;
+            transform: translate(-50%, -100%);
+            cursor: pointer;
+            z-index: ${isSelected ? 100 : 10};
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
           ">
-            <span style="
-              transform: rotate(45deg);
-              font-size: ${isSelected ? "16px" : "13px"};
-            ">${iconSymbol}</span>
+            <div style="
+              background: ${bg};
+              color: ${text};
+              border: 2px solid ${border};
+              box-shadow: ${shadow};
+              padding: ${isSelected ? "5px 11px" : "4px 9px"};
+              border-radius: 9999px;
+              font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              font-weight: 900;
+              font-size: ${isSelected ? "13px" : "11px"};
+              white-space: nowrap;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+              letter-spacing: -0.02em;
+            ">
+              <span style="font-size: ${isSelected ? "11px" : "9px"}; opacity: 0.85;">${isHome ? "🏡" : "💅"}</span>
+              <span>$${price}</span>
+            </div>
+            <div style="
+              width: 0;
+              height: 0;
+              border-left: 5px solid transparent;
+              border-right: 5px solid transparent;
+              border-top: 6px solid ${border};
+              margin-top: -1px;
+            "></div>
           </div>
         `,
-        iconSize: [36, 36],
-        iconAnchor: [18, 36]
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
       });
     };
 
-    // Add markers for filtered salons
+    // Add markers with real-time calculated prices
     filteredSalons.forEach((salon) => {
+      const { price } = calculateDynamicSalonPrice(salon, selectedShape, selectedLength, selectedComplexity);
       const isSelected = salon.id === selectedSalonId;
+
       const marker = L.marker([salon.latitude, salon.longitude], {
-        icon: createCustomIcon(salon.type === "homebased", isSelected)
+        icon: createPriceMarkerIcon(salon, price, isSelected)
       }).addTo(map);
 
       marker.on("click", () => {
         setSelectedSalonId(salon.id);
-        map.flyTo([salon.latitude, salon.longitude], 14, { duration: 0.8 });
+        map.flyTo([salon.latitude, salon.longitude], 14, { duration: 0.7 });
       });
 
       markersRef.current.push(marker);
     });
 
-    // Fly to selected salon if available
     if (selectedSalon) {
-      map.flyTo([selectedSalon.latitude, selectedSalon.longitude], 14, { duration: 0.6 });
+      map.flyTo([selectedSalon.latitude, selectedSalon.longitude], 14, { duration: 0.5 });
     }
-  }, [filteredSalons.length, selectedSalonId]);
+  }, [filteredSalons.length, selectedSalonId, selectedShape, selectedLength, selectedComplexity]);
 
   const handleCopyQuote = (msg: string) => {
     navigator.clipboard.writeText(msg);
@@ -225,7 +234,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
       return;
     }
 
-    // Default coordinates near central Singapore with slight random offset
+    const baseCost = parseInt(newStudioBasePrice, 10) || 38;
     const latOffset = (Math.random() - 0.5) * 0.04;
     const lngOffset = (Math.random() - 0.5) * 0.04;
 
@@ -233,6 +242,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
       id: `hbns_${Date.now()}`,
       name: newStudioName,
       type: "homebased",
+      basePrice: baseCost,
       rating: 5.0,
       reviewsCount: 1,
       latitude: 1.3400 + latOffset,
@@ -245,7 +255,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
       instagram: newStudioInstagram.startsWith("@") ? newStudioInstagram : `@${newStudioInstagram || "home_studio"}`,
       hours: "By Appointment",
       priceLevel: "$",
-      priceRange: newStudioPriceRange,
+      priceRange: `$${baseCost} - $${baseCost + 35}`,
       specialties: newStudioSpecialties.split(",").map((s) => s.trim()),
       vibe: newStudioVibe,
       verified: true,
@@ -264,10 +274,16 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
     setSalonsList((prev) => [newSalon, ...prev]);
     setSelectedSalonId(newSalon.id);
     setShowRegisterModal(false);
-    triggerToast(`🎉 "${newStudioName}" registered and pinned to Singapore map!`);
+    triggerToast(`🎉 "${newStudioName}" registered and pinned to Singapore map with pastel mint price badge!`);
   };
 
-  const currentQuote = selectedSalon ? calculateAIQuote(selectedSalon) : null;
+  const currentPriceCalc = selectedSalon
+    ? calculateDynamicSalonPrice(selectedSalon, selectedShape, selectedLength, selectedComplexity)
+    : null;
+
+  const consultationMsg = selectedSalon && currentPriceCalc
+    ? `Hi ${selectedSalon.name}! 💅 I'd like to check appointment availability for:\n• Shape: ${selectedShape.toUpperCase()}\n• Length: ${selectedLength.toUpperCase()}\n• Complexity: ${selectedComplexity.toUpperCase()}\n• Estimated Price: ~$${currentPriceCalc.price} SGD\nDo you have any available slots this week? Thank you! 💕`
+    : "";
 
   return (
     <div className="space-y-6 animate-fade-in" id="singapore-nail-map">
@@ -277,25 +293,185 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
         <div>
           <div className="flex items-center gap-2">
             <span className="p-2 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl text-white shadow-xs">
-              <MapPin className="w-4 h-4" />
+              <DollarSign className="w-4 h-4" />
             </span>
             <h2 className="font-display font-extrabold text-stone-800 text-lg sm:text-xl">
-              Singapore Nail Salons &amp; Home-Based Map
+              Singapore Nail Salon &amp; Price Map
             </h2>
           </div>
           <p className="text-xs text-stone-500 mt-1">
-            Free interactive Singapore map directory featuring verified salons, Lemon8/Google reviews, and viral home-based studios (HBNS)
+            Real-time price estimates mapped across Singapore with Pastel Pink for Salons &amp; Pastel Mint for Home-Based Studios
           </p>
         </div>
 
         {/* Register Home-Based Nail Studio Button */}
         <button
           onClick={() => setShowRegisterModal(true)}
-          className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl text-xs font-extrabold transition shadow-xs flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
+          className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-extrabold transition shadow-xs flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
         >
           <Home className="w-3.5 h-3.5" />
           <span>➕ Register Home-Based Studio</span>
         </button>
+      </div>
+
+      {/* 🎯 TOP CRITERIA BAR: 1. NAIL SHAPE | 2. NAIL LENGTH | 3. DESIGN COMPLEXITY */}
+      <div className="bg-white rounded-3xl p-5 border border-pink-100 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-pink-100/50 pb-2">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-pink-600" />
+            <h3 className="font-display font-extrabold text-stone-800 text-xs uppercase tracking-wider">
+              Set Nail Criteria to Recalculate Live Map Prices
+            </h3>
+          </div>
+          <span className="text-[10px] text-pink-600 font-bold">
+            Prices update dynamically on map markers
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
+          
+          {/* CRITERIA 1: NAIL SHAPE */}
+          <div className="space-y-2 p-3 bg-stone-50 rounded-2xl border border-stone-200/60">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold text-stone-800 flex items-center gap-1">
+                <span className="w-4 h-4 rounded-full bg-pink-600 text-white text-[9px] font-bold flex items-center justify-center">1</span>
+                <span>Nail Shape</span>
+              </span>
+              <span className="text-[10px] text-pink-600 font-bold capitalize">
+                {selectedShape.replace("_", " ")}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 text-[10px] font-bold">
+              {[
+                { id: "almond", label: "Almond" },
+                { id: "russian_almond", label: "Russian Alm." },
+                { id: "coffin", label: "Coffin" },
+                { id: "stiletto", label: "Stiletto" },
+                { id: "square", label: "Square" },
+                { id: "squoval", label: "Squoval" },
+                { id: "round", label: "Round" },
+                { id: "oval", label: "Oval" },
+                { id: "lipstick", label: "Lipstick" }
+              ].map((s) => {
+                const isSelected = selectedShape === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedShape(s.id as NailShapeFilter)}
+                    className={`py-1.5 px-2 rounded-xl transition flex items-center justify-start gap-1 ${
+                      isSelected
+                        ? "bg-pink-600 text-white shadow-2xs font-extrabold"
+                        : "bg-white text-stone-600 hover:bg-pink-50 border border-stone-200/70"
+                    }`}
+                  >
+                    {isSelected ? (
+                      <CheckSquare className="w-3 h-3 text-white shrink-0" />
+                    ) : (
+                      <SquareIcon className="w-3 h-3 text-stone-300 shrink-0" />
+                    )}
+                    <span className="truncate">{s.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CRITERIA 2: NAIL LENGTH */}
+          <div className="space-y-2 p-3 bg-stone-50 rounded-2xl border border-stone-200/60">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold text-stone-800 flex items-center gap-1">
+                <span className="w-4 h-4 rounded-full bg-pink-600 text-white text-[9px] font-bold flex items-center justify-center">2</span>
+                <span>Nail Length</span>
+              </span>
+              <span className="text-[10px] text-pink-600 font-bold capitalize">
+                {selectedLength.replace("_", " ")}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold">
+              {[
+                { id: "short", label: "Short (Natural)", extra: "+$0" },
+                { id: "medium", label: "Medium (+1.0cm)", extra: "+$8-12" },
+                { id: "long", label: "Long (+2.0cm)", extra: "+$15-22" },
+                { id: "extra_long", label: "Extra Long (+3cm)", extra: "+$22-32" }
+              ].map((len) => {
+                const isSelected = selectedLength === len.id;
+                return (
+                  <button
+                    key={len.id}
+                    onClick={() => setSelectedLength(len.id as NailLengthFilter)}
+                    className={`py-2 px-2.5 rounded-xl transition flex flex-col items-start ${
+                      isSelected
+                        ? "bg-pink-600 text-white shadow-2xs font-extrabold"
+                        : "bg-white text-stone-600 hover:bg-pink-50 border border-stone-200/70"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 w-full">
+                      {isSelected ? (
+                        <CheckSquare className="w-3 h-3 text-white shrink-0" />
+                      ) : (
+                        <SquareIcon className="w-3 h-3 text-stone-300 shrink-0" />
+                      )}
+                      <span className="truncate">{len.label}</span>
+                    </div>
+                    <span className={`text-[8px] pl-4 ${isSelected ? "text-pink-100" : "text-stone-400"}`}>
+                      {len.extra}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CRITERIA 3: DESIGN COMPLEXITY */}
+          <div className="space-y-2 p-3 bg-stone-50 rounded-2xl border border-stone-200/60">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold text-stone-800 flex items-center gap-1">
+                <span className="w-4 h-4 rounded-full bg-pink-600 text-white text-[9px] font-bold flex items-center justify-center">3</span>
+                <span>Design Complexity</span>
+              </span>
+              <span className="text-[10px] text-pink-600 font-bold capitalize">
+                {selectedComplexity.replace("_", " ")}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold">
+              {[
+                { id: "solid", label: "Solid & Syrup Gel", extra: "Base Price" },
+                { id: "french_cateye", label: "French / Cat Eye", extra: "+$12-18" },
+                { id: "charms_3d", label: "3D Charms & Gems", extra: "+$20-30" },
+                { id: "full_gelx_extreme", label: "Full Gel-X + 3D", extra: "+$32-45" }
+              ].map((comp) => {
+                const isSelected = selectedComplexity === comp.id;
+                return (
+                  <button
+                    key={comp.id}
+                    onClick={() => setSelectedComplexity(comp.id as ComplexityFilter)}
+                    className={`py-2 px-2.5 rounded-xl transition flex flex-col items-start ${
+                      isSelected
+                        ? "bg-pink-600 text-white shadow-2xs font-extrabold"
+                        : "bg-white text-stone-600 hover:bg-pink-50 border border-stone-200/70"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 w-full">
+                      {isSelected ? (
+                        <CheckSquare className="w-3 h-3 text-white shrink-0" />
+                      ) : (
+                        <SquareIcon className="w-3 h-3 text-stone-300 shrink-0" />
+                      )}
+                      <span className="truncate">{comp.label}</span>
+                    </div>
+                    <span className={`text-[8px] pl-4 ${isSelected ? "text-pink-100" : "text-stone-400"}`}>
+                      {comp.extra}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* SEARCH & FILTERS BAR */}
@@ -309,7 +485,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search salon name, MRT, area (e.g. Bugis, Tampines, Gel-X)..."
+              placeholder="Search salon name, MRT, area (e.g. Far East Plaza, Jurong Point, Tampines)..."
               className="w-full pl-9 pr-3.5 py-2 text-xs bg-stone-50 border border-stone-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300 font-medium"
             />
           </div>
@@ -327,20 +503,20 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
             <button
               onClick={() => setSelectedType("commercial")}
               className={`flex-1 py-1.5 text-[11px] font-extrabold rounded-lg transition flex items-center justify-center gap-1 ${
-                selectedType === "commercial" ? "bg-pink-600 text-white shadow-2xs" : "text-stone-500 hover:text-stone-800"
+                selectedType === "commercial" ? "bg-pink-100 text-pink-800 border border-pink-300 shadow-2xs" : "text-stone-500 hover:text-stone-800"
               }`}
             >
-              <Building2 className="w-3 h-3" />
-              <span>Salons</span>
+              <Building2 className="w-3 h-3 text-pink-700" />
+              <span>Salons (Pink)</span>
             </button>
             <button
               onClick={() => setSelectedType("homebased")}
               className={`flex-1 py-1.5 text-[11px] font-extrabold rounded-lg transition flex items-center justify-center gap-1 ${
-                selectedType === "homebased" ? "bg-purple-600 text-white shadow-2xs" : "text-stone-500 hover:text-stone-800"
+                selectedType === "homebased" ? "bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs" : "text-stone-500 hover:text-stone-800"
               }`}
             >
-              <Home className="w-3 h-3" />
-              <span>Home-Based</span>
+              <Home className="w-3 h-3 text-emerald-700" />
+              <span>Home (Mint)</span>
             </button>
           </div>
 
@@ -353,41 +529,12 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
             >
               <option value="all">📍 All Singapore Districts</option>
               <option value="Downtown & Bugis">Bugis &amp; Downtown</option>
-              <option value="Central & Orchard">Orchard &amp; Central</option>
-              <option value="East & Tampines">East &amp; Tampines / Katong</option>
-              <option value="West & Jurong">West &amp; Jurong / Holland V</option>
-              <option value="North & Bishan">North &amp; Bishan / Hougang</option>
+              <option value="Central & Orchard">Orchard &amp; Far East Plaza</option>
+              <option value="East & Tampines">East &amp; Tampines Mall / Katong</option>
+              <option value="West & Jurong">West &amp; Jurong Point / Holland V</option>
+              <option value="North & Bishan">North &amp; NEX / Northpoint / Punggol</option>
             </select>
           </div>
-        </div>
-
-        {/* Specialty Quick Filter Tags */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[10px] font-bold">
-          <span className="text-stone-400 shrink-0 flex items-center gap-1">
-            <Filter className="w-3 h-3" />
-            <span>Specialty:</span>
-          </span>
-          {[
-            { id: "all", label: "All Styles" },
-            { id: "3D", label: "🧸 3D Charms & Bears" },
-            { id: "Cat Eye", label: "🧲 Cat Eye Magnetic" },
-            { id: "Syrup", label: "💅 Korean Syrup Jelly" },
-            { id: "Gel-X", label: "✨ Apres Gel-X" },
-            { id: "French", label: "🤍 French Smile Arch" },
-            { id: "Russian", label: "✂️ Russian Manicure" }
-          ].map((spec) => (
-            <button
-              key={spec.id}
-              onClick={() => setSelectedSpecialty(spec.id)}
-              className={`px-2.5 py-1 rounded-lg shrink-0 transition ${
-                selectedSpecialty === spec.id
-                  ? "bg-pink-100 text-pink-700 font-extrabold border border-pink-200"
-                  : "bg-stone-100 text-stone-500 hover:text-stone-800"
-              }`}
-            >
-              {spec.label}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -400,17 +547,19 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs font-extrabold text-stone-700">
-                Interactive Singapore Map ({filteredSalons.length} Studios Found)
+                Interactive Singapore Price Map ({filteredSalons.length} Studios Found)
               </span>
             </div>
+            
+            {/* Color Legend for Marker Price Pills */}
             <div className="flex items-center gap-3 text-[10px] font-bold">
-              <span className="flex items-center gap-1 text-pink-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-pink-500 inline-block" />
-                <span>Commercial Salon</span>
+              <span className="flex items-center gap-1 text-pink-800 bg-pink-100 px-2 py-0.5 rounded-full border border-pink-300">
+                <span>💅</span>
+                <span>Pastel Pink: Commercial Salon</span>
               </span>
-              <span className="flex items-center gap-1 text-purple-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block" />
-                <span>Home-Based (HBNS)</span>
+              <span className="flex items-center gap-1 text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                <span>🏡</span>
+                <span>Pastel Mint: Home-Based (HBNS)</span>
               </span>
             </div>
           </div>
@@ -418,13 +567,13 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
           {/* Leaflet Map Canvas */}
           <div
             ref={mapContainerRef}
-            className="w-full h-[460px] sm:h-[520px] rounded-2xl overflow-hidden border border-stone-200 shadow-inner z-10"
+            className="w-full h-[470px] sm:h-[530px] rounded-2xl overflow-hidden border border-stone-200 shadow-inner z-10"
           />
         </div>
 
-        {/* RIGHT COLUMN: SELECTED SALON / HBNS DETAIL & AI QUOTE (5 COLS) */}
+        {/* RIGHT COLUMN: SELECTED SALON / HBNS DETAIL & LIVE QUOTE (5 COLS) */}
         <div className="lg:col-span-5 space-y-4">
-          {selectedSalon ? (
+          {selectedSalon && currentPriceCalc ? (
             <div className="bg-white rounded-3xl p-5 border border-pink-100 shadow-sm space-y-5 animate-fade-in">
               
               {/* Studio Header */}
@@ -433,8 +582,10 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
                   <div>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`px-2 py-0.5 text-[9px] font-extrabold rounded-md uppercase tracking-wide text-white ${
-                          selectedSalon.type === "homebased" ? "bg-purple-600" : "bg-pink-600"
+                        className={`px-2.5 py-0.5 text-[10px] font-extrabold rounded-full uppercase tracking-wide border ${
+                          selectedSalon.type === "homebased"
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : "bg-pink-100 text-pink-800 border-pink-300"
                         }`}
                       >
                         {selectedSalon.type === "homebased" ? "🏡 Home-Based Studio" : "🏬 Commercial Salon"}
@@ -491,55 +642,58 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
                 </div>
               </div>
 
-              {/* AI RECREATION QUOTE FOR CURRENT USER DESIGN */}
-              {currentQuote && (
-                <div className="p-4 bg-gradient-to-br from-pink-50 via-rose-50/40 to-amber-50/40 rounded-2xl border border-pink-200/80 space-y-3">
-                  <div className="flex items-center justify-between">
+              {/* LIVE DYNAMIC PRICE BREAKDOWN BASED ON TICKED CRITERIA */}
+              <div className="p-4 bg-gradient-to-br from-pink-50 via-rose-50/40 to-amber-50/40 rounded-2xl border border-pink-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
                     <span className="text-[11px] font-extrabold text-stone-800 flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-pink-600" />
-                      <span>AI Estimated Re-creation Quote</span>
+                      <span>Estimated Price for Selected Criteria</span>
                     </span>
-                    <span className="text-sm font-black text-pink-700">
-                      ~${currentQuote.price} SGD
+                    <span className="text-[9px] text-stone-500 block">
+                      {selectedShape.toUpperCase()} • {selectedLength.toUpperCase()} • {selectedComplexity.toUpperCase()}
                     </span>
                   </div>
-
-                  <div className="space-y-1 text-[10px] text-stone-600 border-t border-pink-200/60 pt-2 font-mono">
-                    {currentQuote.details.map((detail, idx) => (
-                      <div key={idx} className="flex items-center gap-1 text-stone-700">
-                        <span>•</span>
-                        <span>{detail}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Actions: WhatsApp Direct & Copy Consultation Msg */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <a
-                      href={`https://wa.me/${selectedSalon.whatsapp}?text=${encodeURIComponent(
-                        currentQuote.consultationMsg
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold text-center transition flex items-center justify-center gap-1.5 shadow-2xs"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Chat on WhatsApp</span>
-                    </a>
-
-                    <button
-                      onClick={() => handleCopyQuote(currentQuote.consultationMsg)}
-                      className="px-3 py-2 bg-white hover:bg-pink-50 text-stone-700 rounded-xl text-xs font-bold transition border border-stone-200 shadow-2xs flex items-center gap-1 shrink-0"
-                      title="Copy inquiry text"
-                    >
-                      {copiedQuote ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedQuote ? "Copied" : "Copy"}</span>
-                    </button>
-                  </div>
+                  <span className="text-base font-black text-pink-700">
+                    ${currentPriceCalc.price} SGD
+                  </span>
                 </div>
-              )}
 
-              {/* RECENT REVIEWS & LEMON8/GOOGLE TESTIMONIALS */}
+                <div className="space-y-1 text-[10px] text-stone-600 border-t border-pink-200/60 pt-2 font-mono">
+                  {currentPriceCalc.breakdown.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-1 text-stone-700">
+                      <span>•</span>
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Actions: WhatsApp Direct & Copy Consultation Msg */}
+                <div className="flex items-center gap-2 pt-1">
+                  <a
+                    href={`https://wa.me/${selectedSalon.whatsapp}?text=${encodeURIComponent(
+                      consultationMsg
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold text-center transition flex items-center justify-center gap-1.5 shadow-2xs"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Chat on WhatsApp (${currentPriceCalc.price})</span>
+                  </a>
+
+                  <button
+                    onClick={() => handleCopyQuote(consultationMsg)}
+                    className="px-3 py-2 bg-white hover:bg-pink-50 text-stone-700 rounded-xl text-xs font-bold transition border border-stone-200 shadow-2xs flex items-center gap-1 shrink-0"
+                    title="Copy inquiry text"
+                  >
+                    {copiedQuote ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedQuote ? "Copied" : "Copy"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* RECENT REVIEWS & TESTIMONIALS */}
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-extrabold text-stone-800 uppercase tracking-wider">
@@ -550,7 +704,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
                   </span>
                 </div>
 
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
                   {selectedSalon.reviews.map((rev, i) => (
                     <div
                       key={i}
@@ -594,7 +748,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-pink-100 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="p-2 bg-purple-600 rounded-xl text-white">
+                <span className="p-2 bg-emerald-600 rounded-xl text-white">
                   <Home className="w-4 h-4" />
                 </span>
                 <div>
@@ -602,7 +756,7 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
                     Register Your Home-Based Nail Studio (HBNS)
                   </h3>
                   <p className="text-[10px] text-stone-400">
-                    Get discovered by nail enthusiasts in Singapore for free!
+                    Get discovered by nail enthusiasts in Singapore with a Pastel Mint price pin!
                   </p>
                 </div>
               </div>
@@ -626,12 +780,12 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
                   value={newStudioName}
                   onChange={(e) => setNewStudioName(e.target.value)}
                   placeholder="e.g. Luna Claws Studio (Home-Based)"
-                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-purple-300 font-medium"
+                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-300 font-medium"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
                   <label className="font-bold text-stone-700 block mb-1">
                     District / Region *
                   </label>
@@ -650,6 +804,21 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
 
                 <div>
                   <label className="font-bold text-stone-700 block mb-1">
+                    Base Gel Price ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={newStudioBasePrice}
+                    onChange={(e) => setNewStudioBasePrice(e.target.value)}
+                    placeholder="38"
+                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl font-bold text-stone-800"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">
                     Nearest MRT Station
                   </label>
                   <input
@@ -660,20 +829,20 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
                     className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl font-medium"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="font-bold text-stone-700 block mb-1">
-                  Neighborhood / Location (Exact unit given on booking) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newStudioAddress}
-                  onChange={(e) => setNewStudioAddress(e.target.value)}
-                  placeholder="e.g. Tampines St 81 (near St Hilda's)"
-                  className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl font-medium"
-                />
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">
+                    Neighborhood / Location *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newStudioAddress}
+                    onChange={(e) => setNewStudioAddress(e.target.value)}
+                    placeholder="e.g. Tampines St 81"
+                    className="w-full p-2.5 bg-stone-50 border border-stone-200 rounded-xl font-medium"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -740,9 +909,9 @@ export function SalonFinder({ collection, shape, length, triggerToast }: SalonFi
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-extrabold shadow-md"
+                  className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-extrabold shadow-md"
                 >
-                  Pin Studio to Map ✨
+                  Pin Studio (Pastel Mint) ✨
                 </button>
               </div>
             </form>
