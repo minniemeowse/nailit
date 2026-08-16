@@ -23,7 +23,8 @@ export type NailShapeType = "almond" | "oval" | "coffin" | "square" | "round";
 export interface AppliedCharm {
   id: string;
   name: string;
-  category: "gummy" | "crystal" | "bow" | "pearl" | "decal";
+  category: "gummy" | "crystal" | "bow" | "pearl" | "decal" | "custom";
+  imageUrl?: string;
   emoji?: string;
   iconSvg?: string;
   x: number; // percentage on nail (0 to 100)
@@ -68,36 +69,39 @@ export interface ContourStraightenResult {
   rectificationQuality?: RectificationQuality;
 }
 
-// 3D Gem & Charm Library (Rich collection matching salon reference photo)
+// 3D Gem & Charm Library with Photographic Assets
 export interface CharmPreset {
   id: string;
   name: string;
-  category: "gummy" | "crystal" | "bow" | "pearl" | "decal";
-  emoji: string;
+  category: "gummy" | "crystal" | "bow" | "pearl" | "decal" | "custom";
+  imageUrl?: string;
+  emoji?: string;
   color: string;
   glow: string;
   description: string;
 }
 
 export const CHARM_PRESETS: CharmPreset[] = [
-  // 🧸 3D Resin Figurines & Gummy Bears (Exact match to reference photo)
+  // 🧸 3D Realistic Resin Figurines & Gummy Bears
   {
     id: "charm_gummy_amber",
-    name: "Caramel 3D Gummy Bear",
+    name: "Amber 3D Party Bear",
     category: "gummy",
+    imageUrl: "/charms/gummy_bear.jpg",
     emoji: "🧸",
     color: "#C67D4A",
-    glow: "rgba(198, 125, 74, 0.4)",
-    description: "Glossy amber 3D resin gummy bear with party hat"
+    glow: "rgba(198, 125, 74, 0.5)",
+    description: "Glossy amber caramel resin 3D gummy bear with party hat"
   },
   {
-    id: "charm_gummy_pink",
-    name: "Bubblegum 3D Bear",
-    category: "gummy",
-    emoji: "🐻",
-    color: "#F48FB1",
-    glow: "rgba(244, 143, 177, 0.4)",
-    description: "Cute translucent jelly pink bear charm"
+    id: "charm_bow_pearl",
+    name: "Sculpted Pearl Bow",
+    category: "bow",
+    imageUrl: "/charms/pearl_bow.jpg",
+    emoji: "🎀",
+    color: "#FFFFFF",
+    glow: "rgba(255, 255, 255, 0.7)",
+    description: "3D sculpted acrylic pearl ribbon with crystal center"
   },
   {
     id: "charm_birthday_cake",
@@ -106,7 +110,7 @@ export const CHARM_PRESETS: CharmPreset[] = [
     emoji: "🎂",
     color: "#FFF0F5",
     glow: "rgba(255, 182, 193, 0.5)",
-    description: "Miniature layered cream cake with rainbow sprinkles"
+    description: "Miniature layered cream cake with sprinkles"
   },
   {
     id: "charm_gift_box",
@@ -115,30 +119,8 @@ export const CHARM_PRESETS: CharmPreset[] = [
     emoji: "🎁",
     color: "#80DEEA",
     glow: "rgba(128, 222, 234, 0.5)",
-    description: "Candy-wrapped turquoise gift charm with yellow ribbon"
+    description: "Candy-wrapped turquoise gift charm"
   },
-
-  // 🎀 3D Coquette Bows
-  {
-    id: "charm_bow_pearl",
-    name: "3D Pearl Ribbon Bow",
-    category: "bow",
-    emoji: "🎀",
-    color: "#FFFFFF",
-    glow: "rgba(255, 255, 255, 0.6)",
-    description: "Delicate sculpted acrylic ribbon with center micro-gem"
-  },
-  {
-    id: "charm_bow_pink",
-    name: "Blush Coquette Bow",
-    category: "bow",
-    emoji: "🩰",
-    color: "#F8BBD0",
-    glow: "rgba(248, 187, 208, 0.5)",
-    description: "Translucent frosted resin bow"
-  },
-
-  // 💎 3D Aurora Crystals & Rhinestones
   {
     id: "charm_gem_diamond",
     name: "Aurora Star Diamond",
@@ -146,7 +128,7 @@ export const CHARM_PRESETS: CharmPreset[] = [
     emoji: "💎",
     color: "#E0F7FA",
     glow: "rgba(0, 229, 255, 0.6)",
-    description: "Multi-faceted holographic glass crystal with brilliant refraction"
+    description: "Faceted aurora glass crystal with spectral refraction"
   },
   {
     id: "charm_gem_heart",
@@ -158,19 +140,8 @@ export const CHARM_PRESETS: CharmPreset[] = [
     description: "3D raised faceted ruby-pink crystal heart"
   },
   {
-    id: "charm_star_holo",
-    name: "Silver Cosmic Star",
-    category: "crystal",
-    emoji: "⭐",
-    color: "#FFF9C4",
-    glow: "rgba(255, 235, 59, 0.5)",
-    description: "Raised 4-point aurora rhinestone star"
-  },
-
-  // ⚪ Pearls & Caviar Accents
-  {
     id: "charm_pearl_drop",
-    name: "Iridescent Half-Pearl",
+    name: "Lustrous Dome Pearl",
     category: "pearl",
     emoji: "⚪",
     color: "#FFFDE7",
@@ -185,15 +156,6 @@ export const CHARM_PRESETS: CharmPreset[] = [
     color: "#FFD700",
     glow: "rgba(255, 215, 0, 0.5)",
     description: "14K gold metallic micro-sphere cluster"
-  },
-  {
-    id: "charm_cherry",
-    name: "3D Glazed Cherries",
-    category: "decal",
-    emoji: "🍒",
-    color: "#E91E63",
-    glow: "rgba(233, 30, 99, 0.4)",
-    description: "Juicy twin red cherries with green stem"
   }
 ];
 

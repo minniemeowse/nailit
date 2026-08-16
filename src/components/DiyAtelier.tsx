@@ -128,6 +128,10 @@ export function DiyAtelier({
   const [studioMode, setStudioMode] = useState<"bases" | "custom_photo">("bases");
   const [baseCategoryFilter, setBaseCategoryFilter] = useState<string>("all");
 
+  // Custom User Uploaded Charms
+  const [customCharms, setCustomCharms] = useState<CharmPreset[]>([]);
+  const charmFileInputRef = useRef<HTMLInputElement>(null);
+
   // Selection Mode: "brush" (drag to highlight) or "tap" (1-click center)
   const [selectionTool, setSelectionTool] = useState<"brush" | "tap">("brush");
   const [selectedShapeType, setSelectedShapeType] = useState<NailShapeType>("almond");
@@ -169,12 +173,13 @@ export function DiyAtelier({
           basePresetId: preset.id,
           appliedCharms: idx === 2 ? [{
             id: "initial_gummy",
-            name: "Caramel 3D Gummy Bear",
+            name: "Amber 3D Party Bear",
             category: "gummy",
+            imageUrl: "/charms/gummy_bear.jpg",
             emoji: "🧸",
             x: 50,
             y: 50,
-            scale: 1.35,
+            scale: 1.45,
             rotation: 0
           }] : []
         };
@@ -492,10 +497,11 @@ export function DiyAtelier({
       id: `charm_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       name: charmPreset.name,
       category: charmPreset.category,
+      imageUrl: charmPreset.imageUrl,
       emoji: charmPreset.emoji,
       x: 50,
       y: 50,
-      scale: charmPreset.category === "gummy" ? 1.35 : 1.0,
+      scale: charmPreset.imageUrl ? 1.4 : charmPreset.category === "gummy" ? 1.35 : 1.0,
       rotation: 0
     };
 
@@ -513,6 +519,33 @@ export function DiyAtelier({
     triggerToast(`✨ Placed "${charmPreset.name}" onto ${activeCard.label}!`);
   };
 
+  const handleUploadCustomCharm = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (!dataUrl) return;
+
+      const customPreset: CharmPreset = {
+        id: `custom_charm_${Date.now()}`,
+        name: file.name.replace(/\.[^/.]+$/, "") || "Custom Gem",
+        category: "custom",
+        imageUrl: dataUrl,
+        emoji: "💎",
+        color: "#FFFFFF",
+        glow: "rgba(255, 255, 255, 0.7)",
+        description: "User uploaded 3D charm"
+      };
+
+      setCustomCharms((prev) => [customPreset, ...prev]);
+      handleAddCharmToNail(customPreset);
+      triggerToast(`✨ Uploaded & placed "${customPreset.name}"!`);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleRemoveCharm = (charmId: string) => {
     if (!activeCard) return;
     setSeparatedNailCards((prev) =>
@@ -526,6 +559,8 @@ export function DiyAtelier({
       )
     );
   };
+
+  const allAvailableCharms = [...customCharms, ...CHARM_PRESETS];
 
   const filteredPresets =
     baseCategoryFilter === "all"
@@ -871,14 +906,22 @@ export function DiyAtelier({
                                 {card.appliedCharms?.map((charm) => (
                                   <span
                                     key={charm.id}
-                                    className="absolute text-sm pointer-events-none drop-shadow-md z-20"
+                                    className="absolute pointer-events-none drop-shadow-md z-20"
                                     style={{
                                       left: `${charm.x}%`,
                                       top: `${charm.y}%`,
                                       transform: `translate(-50%, -50%) scale(${charm.scale}) rotate(${charm.rotation}deg)`
                                     }}
                                   >
-                                    {charm.emoji}
+                                    {charm.imageUrl ? (
+                                      <img
+                                        src={charm.imageUrl}
+                                        alt={charm.name}
+                                        className="w-7 h-7 object-contain mix-blend-multiply filter drop-shadow-sm"
+                                      />
+                                    ) : (
+                                      <span className="text-sm">{charm.emoji}</span>
+                                    )}
                                   </span>
                                 ))}
                               </div>
@@ -955,14 +998,22 @@ export function DiyAtelier({
                                 {card.appliedCharms?.map((charm) => (
                                   <span
                                     key={charm.id}
-                                    className="absolute text-sm pointer-events-none drop-shadow-md z-20"
+                                    className="absolute pointer-events-none drop-shadow-md z-20"
                                     style={{
                                       left: `${charm.x}%`,
                                       top: `${charm.y}%`,
                                       transform: `translate(-50%, -50%) scale(${charm.scale}) rotate(${charm.rotation}deg)`
                                     }}
                                   >
-                                    {charm.emoji}
+                                    {charm.imageUrl ? (
+                                      <img
+                                        src={charm.imageUrl}
+                                        alt={charm.name}
+                                        className="w-7 h-7 object-contain mix-blend-multiply filter drop-shadow-sm"
+                                      />
+                                    ) : (
+                                      <span className="text-sm">{charm.emoji}</span>
+                                    )}
                                   </span>
                                 ))}
                               </div>
@@ -1011,13 +1062,31 @@ export function DiyAtelier({
                       3D Charms &amp; Decorator Studio — {activeCard.label}
                     </h4>
                     <p className="text-[10px] text-stone-400">
-                      Click any 3D resin bear, bow, or crystal below to attach to this nail!
+                      Click realistic 3D charms below or upload your own gems to decorate this nail!
                     </p>
                   </div>
                 </div>
 
-                <div className="text-[10px] font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full">
-                  {activeCard.colorName || "Custom Base"}
+                <div className="flex items-center gap-2">
+                  {/* Upload Custom Charm Button */}
+                  <button
+                    onClick={() => charmFileInputRef.current?.click()}
+                    className="px-3 py-1 bg-pink-50 hover:bg-pink-100 text-pink-700 rounded-xl text-[11px] font-extrabold transition border border-pink-200/80 shadow-2xs flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Upload Custom Charm</span>
+                  </button>
+                  <input
+                    type="file"
+                    ref={charmFileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleUploadCustomCharm}
+                  />
+
+                  <div className="text-[10px] font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full">
+                    {activeCard.colorName || "Custom Base"}
+                  </div>
                 </div>
               </div>
 
@@ -1025,8 +1094,8 @@ export function DiyAtelier({
               <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
                 
                 {/* Large Close-up Nail Preview Stand */}
-                <div className="md:col-span-4 flex flex-col items-center justify-center p-4 bg-gradient-to-b from-stone-50 via-pink-50/20 to-stone-100 rounded-2xl border border-stone-200/70 shadow-inner min-h-[190px] relative">
-                  <div className="relative w-20 h-28 flex items-center justify-center">
+                <div className="md:col-span-4 flex flex-col items-center justify-center p-4 bg-gradient-to-b from-stone-50 via-pink-50/20 to-stone-100 rounded-2xl border border-stone-200/70 shadow-inner min-h-[210px] relative">
+                  <div className="relative w-24 h-32 flex items-center justify-center">
                     <img
                       src={activeCard.croppedImage}
                       alt={activeCard.label}
@@ -1046,8 +1115,16 @@ export function DiyAtelier({
                         }}
                         title={`Click to remove ${charm.name}`}
                       >
-                        <span className="text-xl filter drop-shadow-md">{charm.emoji}</span>
-                        <span className="hidden group-hover:block absolute -top-4 left-1/2 -translate-x-1/2 px-1 bg-red-500 text-white text-[8px] font-extrabold rounded">
+                        {charm.imageUrl ? (
+                          <img
+                            src={charm.imageUrl}
+                            alt={charm.name}
+                            className="w-12 h-12 object-contain mix-blend-multiply filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)]"
+                          />
+                        ) : (
+                          <span className="text-2xl filter drop-shadow-md">{charm.emoji}</span>
+                        )}
+                        <span className="hidden group-hover:block absolute -top-4 left-1/2 -translate-x-1/2 px-1 bg-red-500 text-white text-[8px] font-extrabold rounded z-30">
                           ✕
                         </span>
                       </div>
@@ -1055,7 +1132,7 @@ export function DiyAtelier({
                   </div>
 
                   {/* Crystal Pedestal */}
-                  <div className="w-10 h-4 -mt-1 rounded-full bg-gradient-to-t from-pink-300 via-rose-200 to-white border border-pink-300/80 shadow-md flex items-center justify-center">
+                  <div className="w-12 h-4 -mt-1 rounded-full bg-gradient-to-t from-pink-300 via-rose-200 to-white border border-pink-300/80 shadow-md flex items-center justify-center">
                     <span className="w-3 h-1 bg-white/80 rounded-full" />
                   </div>
 
@@ -1075,16 +1152,24 @@ export function DiyAtelier({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
-                    {CHARM_PRESETS.map((charm) => (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-52 overflow-y-auto pr-1">
+                    {allAvailableCharms.map((charm) => (
                       <button
                         key={charm.id}
                         onClick={() => handleAddCharmToNail(charm)}
-                        className="p-2.5 bg-stone-50 hover:bg-pink-50/70 border border-stone-200/80 hover:border-pink-300 rounded-xl text-center transition-all duration-150 group flex flex-col items-center justify-center shadow-2xs hover:scale-105 active:scale-95"
+                        className="p-2.5 bg-stone-50 hover:bg-pink-50/70 border border-stone-200/80 hover:border-pink-300 rounded-2xl text-center transition-all duration-150 group flex flex-col items-center justify-center shadow-2xs hover:scale-105 active:scale-95"
                       >
-                        <span className="text-2xl mb-1 filter drop-shadow-xs group-hover:scale-115 transition-transform">
-                          {charm.emoji}
-                        </span>
+                        {charm.imageUrl ? (
+                          <img
+                            src={charm.imageUrl}
+                            alt={charm.name}
+                            className="w-10 h-10 object-contain mb-1 mix-blend-multiply filter drop-shadow-xs group-hover:scale-110 transition-transform"
+                          />
+                        ) : (
+                          <span className="text-2xl mb-1 filter drop-shadow-xs group-hover:scale-115 transition-transform">
+                            {charm.emoji}
+                          </span>
+                        )}
                         <span className="text-[9px] font-bold text-stone-700 truncate w-full block">
                           {charm.name}
                         </span>
