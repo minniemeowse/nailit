@@ -28,7 +28,6 @@ import {
   segmentNailFromPoint,
   extractFromBrushBounds,
   TappedPoint,
-  NailShapeType,
   CHARM_PRESETS,
   CharmPreset,
   AppliedCharm
@@ -36,8 +35,11 @@ import {
 import { RectificationQuality, Point2D } from "../utils/tpsWarp";
 import {
   SALON_BASE_PRESETS,
+  SALON_SHAPES,
   NailBasePreset,
   BaseCategory,
+  NailShapeType,
+  NailShapeInfo,
   generateBaseNailImage
 } from "../utils/nailBases";
 
@@ -150,7 +152,7 @@ export function DiyAtelier({
     if (separatedNailCards.length === 0) {
       const initialCards: SeparatedNailCard[] = FINGER_ORDER.map((f, idx) => {
         const preset = SALON_BASE_PRESETS.find((p) => p.id === f.defaultPreset) || SALON_BASE_PRESETS[0];
-        const initialImg = generateBaseNailImage(preset);
+        const initialImg = generateBaseNailImage(preset, "almond");
 
         return {
           id: `preset_nail_${idx + 1}`,
@@ -175,7 +177,7 @@ export function DiyAtelier({
             id: "initial_gummy",
             name: "Amber 3D Party Bear",
             category: "gummy",
-            imageUrl: "/charms/gummy_bear.jpg",
+            imageUrl: "/charms/gummy_bear.png",
             emoji: "🧸",
             x: 50,
             y: 50,
@@ -199,6 +201,25 @@ export function DiyAtelier({
 
   const activeCard = separatedNailCards.find((c) => c.id === selectedSeparatedNailId) || separatedNailCards[0];
 
+  // --- SWITCH NAIL SHAPE FOR ENTIRE SET ---
+  const handleSelectShape = (shapeId: NailShapeType) => {
+    setSelectedShapeType(shapeId);
+    setSeparatedNailCards((prev) =>
+      prev.map((c) => {
+        const preset = SALON_BASE_PRESETS.find((p) => p.id === c.basePresetId) || SALON_BASE_PRESETS[0];
+        const updatedImg = generateBaseNailImage(preset, shapeId);
+        return {
+          ...c,
+          shapeType: shapeId,
+          croppedImage: updatedImg,
+          rawCroppedImage: updatedImg
+        };
+      })
+    );
+    const shapeObj = SALON_SHAPES.find((s) => s.id === shapeId);
+    triggerToast(`✨ Switched set to 3D ${shapeObj?.name || shapeId} shape!`);
+  };
+
   // --- APPLY SALON BASE PRESET ---
   const handleApplyPresetToSelected = (preset: NailBasePreset) => {
     if (!activeCard) {
@@ -206,7 +227,7 @@ export function DiyAtelier({
       return;
     }
 
-    const newNailImg = generateBaseNailImage(preset);
+    const newNailImg = generateBaseNailImage(preset, activeCard.shapeType || selectedShapeType);
 
     setSeparatedNailCards((prev) =>
       prev.map((c) =>
@@ -231,21 +252,22 @@ export function DiyAtelier({
   };
 
   const handleApplyPresetToAll = (preset: NailBasePreset) => {
-    const newNailImg = generateBaseNailImage(preset);
-
     setSeparatedNailCards((prev) =>
-      prev.map((c) => ({
-        ...c,
-        dominantColor: preset.baseColor,
-        colorName: preset.name,
-        finish: preset.finish,
-        artStyle: preset.artStyle,
-        secondaryColor: preset.secondaryColor,
-        decorations: preset.description,
-        croppedImage: newNailImg,
-        rawCroppedImage: newNailImg,
-        basePresetId: preset.id
-      }))
+      prev.map((c) => {
+        const newNailImg = generateBaseNailImage(preset, c.shapeType || selectedShapeType);
+        return {
+          ...c,
+          dominantColor: preset.baseColor,
+          colorName: preset.name,
+          finish: preset.finish,
+          artStyle: preset.artStyle,
+          secondaryColor: preset.secondaryColor,
+          decorations: preset.description,
+          croppedImage: newNailImg,
+          rawCroppedImage: newNailImg,
+          basePresetId: preset.id
+        };
+      })
     );
 
     triggerToast(`✨ Applied "${preset.name}" across all 10 press-on nails!`);
@@ -617,6 +639,38 @@ export function DiyAtelier({
         {/* LEFT COLUMN: BASE LIBRARY & PHOTO UPLOAD (5 COLS) */}
         <div className="lg:col-span-5 space-y-5">
           
+          {/* POPULAR SALON NAIL SHAPES SELECTOR (Ref: Tree Nail Spa Chart) */}
+          <div className="bg-white rounded-2xl p-4 border border-pink-100 shadow-sm space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold text-stone-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3 h-3 text-pink-500" />
+                <span>Nail Shape &amp; Silhouette</span>
+              </span>
+              <span className="text-[10px] text-pink-600 font-bold capitalize">
+                {SALON_SHAPES.find((s) => s.id === selectedShapeType)?.name || selectedShapeType}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] font-bold">
+              {SALON_SHAPES.map((shapeItem) => {
+                const isSelected = selectedShapeType === shapeItem.id;
+                return (
+                  <button
+                    key={shapeItem.id}
+                    onClick={() => handleSelectShape(shapeItem.id)}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition-all text-left flex items-center gap-1.5 ${
+                      isSelected
+                        ? "bg-pink-600 text-white shadow-xs scale-102 ring-2 ring-pink-300/60 font-extrabold"
+                        : "bg-stone-100 hover:bg-pink-50 text-stone-600 hover:text-stone-900 border border-stone-200/60"
+                    }`}
+                  >
+                    <span>{shapeItem.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          
           <div className="bg-white rounded-2xl p-5 border border-pink-100 shadow-sm space-y-4">
             
             {/* Mode Switcher: Salon Base Library vs Custom Photo */}
@@ -917,10 +971,10 @@ export function DiyAtelier({
                                       <img
                                         src={charm.imageUrl}
                                         alt={charm.name}
-                                        className="w-7 h-7 object-contain mix-blend-multiply filter drop-shadow-sm"
+                                        className="w-8 h-8 object-contain filter drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)]"
                                       />
                                     ) : (
-                                      <span className="text-sm">{charm.emoji}</span>
+                                      <span className="text-sm filter drop-shadow-sm">{charm.emoji}</span>
                                     )}
                                   </span>
                                 ))}
@@ -998,7 +1052,7 @@ export function DiyAtelier({
                                 {card.appliedCharms?.map((charm) => (
                                   <span
                                     key={charm.id}
-                                    className="absolute pointer-events-none drop-shadow-md z-20"
+                                    className="absolute pointer-events-none z-20"
                                     style={{
                                       left: `${charm.x}%`,
                                       top: `${charm.y}%`,
@@ -1009,10 +1063,10 @@ export function DiyAtelier({
                                       <img
                                         src={charm.imageUrl}
                                         alt={charm.name}
-                                        className="w-7 h-7 object-contain mix-blend-multiply filter drop-shadow-sm"
+                                        className="w-8 h-8 object-contain filter drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)]"
                                       />
                                     ) : (
-                                      <span className="text-sm">{charm.emoji}</span>
+                                      <span className="text-sm filter drop-shadow-sm">{charm.emoji}</span>
                                     )}
                                   </span>
                                 ))}
@@ -1107,7 +1161,7 @@ export function DiyAtelier({
                       <div
                         key={charm.id}
                         onClick={() => handleRemoveCharm(charm.id)}
-                        className="absolute cursor-pointer hover:scale-125 transition-transform group"
+                        className="absolute cursor-pointer hover:scale-125 transition-transform group z-20"
                         style={{
                           left: `${charm.x}%`,
                           top: `${charm.y}%`,
@@ -1119,7 +1173,7 @@ export function DiyAtelier({
                           <img
                             src={charm.imageUrl}
                             alt={charm.name}
-                            className="w-12 h-12 object-contain mix-blend-multiply filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)]"
+                            className="w-12 h-12 object-contain filter drop-shadow-[0_6px_10px_rgba(0,0,0,0.35)]"
                           />
                         ) : (
                           <span className="text-2xl filter drop-shadow-md">{charm.emoji}</span>
@@ -1163,7 +1217,7 @@ export function DiyAtelier({
                           <img
                             src={charm.imageUrl}
                             alt={charm.name}
-                            className="w-10 h-10 object-contain mb-1 mix-blend-multiply filter drop-shadow-xs group-hover:scale-110 transition-transform"
+                            className="w-10 h-10 object-contain mb-1 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)] group-hover:scale-110 transition-transform"
                           />
                         ) : (
                           <span className="text-2xl mb-1 filter drop-shadow-xs group-hover:scale-115 transition-transform">

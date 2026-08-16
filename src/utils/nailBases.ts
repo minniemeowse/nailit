@@ -1,6 +1,39 @@
 // Salon Base & Texture Library: Solid shades, French designs, Cat Eye Magnetic, Chrome Glazes, Aura & Marble
+// Enhanced with 3D C-curve shading, cylindrical apex volume, and comprehensive shape outlines
 
 export type BaseCategory = "solid" | "french" | "cateye" | "chrome" | "aura" | "marble";
+
+export type NailShapeType =
+  | "almond"
+  | "russian_almond"
+  | "coffin"
+  | "stiletto"
+  | "square"
+  | "squoval"
+  | "round_square"
+  | "oval"
+  | "round"
+  | "lipstick";
+
+export interface NailShapeInfo {
+  id: NailShapeType;
+  name: string;
+  category: "classic" | "tapered" | "statement";
+  description: string;
+}
+
+export const SALON_SHAPES: NailShapeInfo[] = [
+  { id: "almond", name: "Almond", category: "tapered", description: "Classic tapered oval with soft apex" },
+  { id: "russian_almond", name: "Russian Almond", category: "tapered", description: "Slim elongated taper with refined point" },
+  { id: "coffin", name: "Coffin (Ballerina)", category: "statement", description: "Tapered straight sidewalls with flat square tip" },
+  { id: "stiletto", name: "Stiletto", category: "statement", description: "Dramatic sharp pointed spear tip" },
+  { id: "square", name: "Square", category: "classic", description: "Crisp straight sidewalls with 90° flat tip" },
+  { id: "squoval", name: "Squoval", category: "classic", description: "Flat square tip with soft bevelled corners" },
+  { id: "round_square", name: "Round Square", category: "classic", description: "Square silhouette with continuous curve" },
+  { id: "oval", name: "Oval", category: "classic", description: "Gentle natural continuous egg-shaped arch" },
+  { id: "round", name: "Round", category: "classic", description: "Straight sides with circular curved tip" },
+  { id: "lipstick", name: "Lipstick", category: "statement", description: "Sharp slanted diagonal cut tip" }
+];
 
 export interface NailBasePreset {
   id: string;
@@ -13,7 +46,6 @@ export interface NailBasePreset {
   artStyle: "solid" | "french" | "ombre" | "marble" | "pattern" | "accent";
   description: string;
   badge?: string;
-  // Dynamic CSS / Canvas Shader params
   gradient?: string;
   overlayPattern?: "classic_french" | "v_french" | "micro_french" | "ombre_french" | "cateye_beam" | "velvet_glow" | "aura_glow" | "marble_swirl" | "leopard_spots" | "glazed_chrome";
 }
@@ -157,7 +189,7 @@ export const SALON_BASE_PRESETS: NailBasePreset[] = [
     id: "cateye_silver_stardust",
     name: "Silver Stardust Cat Eye",
     category: "cateye",
-    baseColor: "#424242",
+    baseColor: "#333333",
     secondaryColor: "#E0F7FA",
     finish: "holographic",
     artStyle: "accent",
@@ -250,10 +282,129 @@ export const SALON_BASE_PRESETS: NailBasePreset[] = [
 ];
 
 /**
- * Generates an ultra-crisp transparent PNG canvas representation of a nail base preset
+ * Draws precision anatomical 2D/3D nail paths for all popular salon nail shapes
+ */
+export function drawSalonNailPath(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  shape: NailShapeType = "almond"
+) {
+  const hw = w / 2;
+  const hh = h / 2;
+
+  ctx.beginPath();
+
+  switch (shape) {
+    case "russian_almond":
+      // Elongated tapered Russian Almond with slim sharp apex
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.9, cy + hh * 0.95, cx - hw * 0.95, cy + hh * 0.5, cx - hw * 0.85, cy);
+      ctx.bezierCurveTo(cx - hw * 0.75, cy - hh * 0.55, cx - hw * 0.28, cy - hh * 0.92, cx, cy - hh * 0.98);
+      ctx.bezierCurveTo(cx + hw * 0.28, cy - hh * 0.98, cx + hw * 0.75, cy - hh * 0.55, cx + hw * 0.85, cy);
+      ctx.bezierCurveTo(cx + hw * 0.95, cy + hh * 0.5, cx + hw * 0.9, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "coffin":
+      // Tapered Coffin / Ballerina (Straight tapered sides, flat square tip)
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.88, cy + hh * 0.95, cx - hw * 0.92, cy + hh * 0.55, cx - hw * 0.88, cy + hh * 0.15);
+      ctx.lineTo(cx - hw * 0.52, cy - hh * 0.92);
+      ctx.lineTo(cx + hw * 0.52, cy - hh * 0.92);
+      ctx.lineTo(cx + hw * 0.88, cy + hh * 0.15);
+      ctx.bezierCurveTo(cx + hw * 0.92, cy + hh * 0.55, cx + hw * 0.88, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "stiletto":
+      // Sharp spear pointed tip
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.88, cy + hh * 0.95, cx - hw * 0.92, cy + hh * 0.55, cx - hw * 0.82, cy + hh * 0.1);
+      ctx.lineTo(cx, cy - hh * 0.98);
+      ctx.lineTo(cx + hw * 0.82, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx + hw * 0.92, cy + hh * 0.55, cx + hw * 0.88, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "square":
+      // Parallel straight sides with 90° flat tip
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.85, cy + hh * 0.95, cx - hw * 0.9, cy + hh * 0.6, cx - hw * 0.9, cy + hh * 0.2);
+      ctx.lineTo(cx - hw * 0.9, cy - hh * 0.92);
+      ctx.lineTo(cx + hw * 0.9, cy - hh * 0.92);
+      ctx.lineTo(cx + hw * 0.9, cy + hh * 0.2);
+      ctx.bezierCurveTo(cx + hw * 0.9, cy + hh * 0.6, cx + hw * 0.85, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "squoval":
+      // Flat tip with softly rounded bevel corners
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.85, cy + hh * 0.95, cx - hw * 0.9, cy + hh * 0.6, cx - hw * 0.9, cy + hh * 0.2);
+      ctx.lineTo(cx - hw * 0.9, cy - hh * 0.78);
+      ctx.bezierCurveTo(cx - hw * 0.9, cy - hh * 0.92, cx - hw * 0.75, cy - hh * 0.92, cx - hw * 0.6, cy - hh * 0.92);
+      ctx.lineTo(cx + hw * 0.6, cy - hh * 0.92);
+      ctx.bezierCurveTo(cx + hw * 0.75, cy - hh * 0.92, cx + hw * 0.9, cy - hh * 0.92, cx + hw * 0.9, cy - hh * 0.78);
+      ctx.lineTo(cx + hw * 0.9, cy + hh * 0.2);
+      ctx.bezierCurveTo(cx + hw * 0.9, cy + hh * 0.6, cx + hw * 0.85, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "round_square":
+      // Round Square
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.88, cy + hh * 0.95, cx - hw * 0.92, cy + hh * 0.55, cx - hw * 0.9, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx - hw * 0.88, cy - hh * 0.7, cx - hw * 0.7, cy - hh * 0.9, cx, cy - hh * 0.9);
+      ctx.bezierCurveTo(cx + hw * 0.7, cy - hh * 0.9, cx + hw * 0.88, cy - hh * 0.7, cx + hw * 0.9, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx + hw * 0.92, cy + hh * 0.55, cx + hw * 0.88, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "oval":
+      // Gentle natural oval
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.9, cy + hh * 0.95, cx - hw * 0.95, cy + hh * 0.55, cx - hw * 0.92, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx - hw * 0.88, cy - hh * 0.45, cx - hw * 0.5, cy - hh * 0.92, cx, cy - hh * 0.94);
+      ctx.bezierCurveTo(cx + hw * 0.5, cy - hh * 0.94, cx + hw * 0.88, cy - hh * 0.45, cx + hw * 0.92, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx + hw * 0.95, cy + hh * 0.55, cx + hw * 0.9, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "round":
+      // Semicircular round tip
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.88, cy + hh * 0.95, cx - hw * 0.92, cy + hh * 0.55, cx - hw * 0.92, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx - hw * 0.92, cy - hh * 0.6, cx - hw * 0.6, cy - hh * 0.94, cx, cy - hh * 0.94);
+      ctx.bezierCurveTo(cx + hw * 0.6, cy - hh * 0.94, cx + hw * 0.92, cy - hh * 0.6, cx + hw * 0.92, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx + hw * 0.92, cy + hh * 0.55, cx + hw * 0.88, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "lipstick":
+      // Lipstick (sharp slanted diagonal cut)
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.85, cy + hh * 0.95, cx - hw * 0.9, cy + hh * 0.6, cx - hw * 0.9, cy + hh * 0.1);
+      ctx.lineTo(cx - hw * 0.9, cy - hh * 0.55);
+      ctx.lineTo(cx + hw * 0.9, cy - hh * 0.95);
+      ctx.lineTo(cx + hw * 0.9, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx + hw * 0.9, cy + hh * 0.6, cx + hw * 0.85, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+
+    case "almond":
+    default:
+      // Classic almond
+      ctx.moveTo(cx, cy + hh * 0.95);
+      ctx.bezierCurveTo(cx - hw * 0.92, cy + hh * 0.95, cx - hw * 0.98, cy + hh * 0.55, cx - hw * 0.95, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx - hw * 0.95, cy - hh * 0.35, cx - hw * 0.45, cy - hh * 0.88, cx, cy - hh * 0.96);
+      ctx.bezierCurveTo(cx + hw * 0.45, cy - hh * 0.96, cx + hw * 0.95, cy - hh * 0.35, cx + hw * 0.95, cy + hh * 0.1);
+      ctx.bezierCurveTo(cx + hw * 0.98, cy + hh * 0.55, cx + hw * 0.92, cy + hh * 0.95, cx, cy + hh * 0.95);
+      break;
+  }
+
+  ctx.closePath();
+}
+
+/**
+ * Generates an ultra-crisp 3D transparent PNG canvas representation of a nail base with C-curve volume & textures
  */
 export function generateBaseNailImage(
   preset: NailBasePreset,
+  shape: NailShapeType = "almond",
   width: number = 256,
   height: number = 384
 ): string {
@@ -263,23 +414,15 @@ export function generateBaseNailImage(
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
 
-  // 1. Draw Anatomical Almond/Oval Clipping Path
-  ctx.save();
-  const hw = width / 2;
-  const hh = height / 2;
-  const cx = hw;
-  const cy = hh;
+  const cx = width / 2;
+  const cy = height / 2;
 
-  ctx.beginPath();
-  ctx.moveTo(cx, cy + hh * 0.95);
-  ctx.bezierCurveTo(cx - hw * 0.92, cy + hh * 0.95, cx - hw * 0.98, cy + hh * 0.55, cx - hw * 0.95, cy + hh * 0.1);
-  ctx.bezierCurveTo(cx - hw * 0.95, cy - hh * 0.35, cx - hw * 0.45, cy - hh * 0.88, cx, cy - hh * 0.96);
-  ctx.bezierCurveTo(cx + hw * 0.45, cy - hh * 0.96, cx + hw * 0.95, cy - hh * 0.35, cx + hw * 0.95, cy + hh * 0.1);
-  ctx.bezierCurveTo(cx + hw * 0.98, cy + hh * 0.55, cx + hw * 0.92, cy + hh * 0.95, cx, cy + hh * 0.95);
-  ctx.closePath();
+  // 1. Clip to Chosen Anatomical Nail Shape
+  ctx.save();
+  drawSalonNailPath(ctx, cx, cy, width, height, shape);
   ctx.clip();
 
-  // 2. Base Color & Gradient Fill
+  // 2. Base Color & Jelly Gradient Fill
   if (preset.gradient) {
     const grad = ctx.createLinearGradient(0, 0, 0, height);
     grad.addColorStop(0, preset.baseColor);
@@ -292,7 +435,7 @@ export function generateBaseNailImage(
 
   // 3. Render Specific Pattern Overlays
   if (preset.overlayPattern === "classic_french") {
-    // White French Smile Arc
+    // 3D French Smile Arc with gel depth
     ctx.save();
     ctx.fillStyle = preset.secondaryColor || "#FFFFFF";
     ctx.beginPath();
@@ -302,9 +445,16 @@ export function generateBaseNailImage(
     ctx.lineTo(0, 0);
     ctx.closePath();
     ctx.fill();
+
+    // 3D smile line ridge shadow
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.08)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.28);
+    ctx.bezierCurveTo(width * 0.25, height * 0.42, width * 0.75, height * 0.42, width, height * 0.28);
+    ctx.stroke();
     ctx.restore();
   } else if (preset.overlayPattern === "micro_french") {
-    // Micro Tip French
     ctx.save();
     ctx.fillStyle = preset.secondaryColor || "#1A1A1A";
     ctx.beginPath();
@@ -316,7 +466,6 @@ export function generateBaseNailImage(
     ctx.fill();
     ctx.restore();
   } else if (preset.overlayPattern === "v_french") {
-    // Chevron V-French
     ctx.save();
     ctx.fillStyle = preset.secondaryColor || "#FF80AB";
     ctx.beginPath();
@@ -329,29 +478,37 @@ export function generateBaseNailImage(
     ctx.fill();
     ctx.restore();
   } else if (preset.overlayPattern === "ombre_french") {
-    // Baby Boomer Gradient
     const ombre = ctx.createLinearGradient(0, 0, 0, height * 0.75);
     ombre.addColorStop(0, preset.secondaryColor || "#FFFFFF");
-    ombre.addColorStop(0.5, "rgba(255, 255, 255, 0.4)");
+    ombre.addColorStop(0.5, "rgba(255, 255, 255, 0.45)");
     ombre.addColorStop(1, "rgba(255, 255, 255, 0)");
     ctx.fillStyle = ombre;
     ctx.fillRect(0, 0, width, height);
   } else if (preset.overlayPattern === "cateye_beam") {
-    // 3D Magnetic Cat Eye Light Streak
+    // 3D Magnetic Cat Eye Silk Band with Deep Optical Halo
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(-Math.PI / 4);
-    const beam = ctx.createLinearGradient(-width, 0, width, 0);
+
+    // Deep magnetic halo
+    const halo = ctx.createRadialGradient(0, 0, 10, 0, 0, width * 0.9);
+    halo.addColorStop(0, "rgba(255, 255, 255, 0.35)");
+    halo.addColorStop(0.5, "rgba(0, 0, 0, 0.25)");
+    halo.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(-width * 1.5, -height * 1.5, width * 3, height * 3);
+
+    // Intense magnetic laser beam
+    const beam = ctx.createLinearGradient(-width * 0.35, 0, width * 0.35, 0);
     beam.addColorStop(0, "rgba(255, 255, 255, 0)");
-    beam.addColorStop(0.4, "rgba(255, 255, 255, 0.2)");
+    beam.addColorStop(0.4, "rgba(255, 255, 255, 0.35)");
     beam.addColorStop(0.5, preset.secondaryColor || "#FFFFFF");
-    beam.addColorStop(0.6, "rgba(255, 255, 255, 0.2)");
+    beam.addColorStop(0.6, "rgba(255, 255, 255, 0.35)");
     beam.addColorStop(1, "rgba(255, 255, 255, 0)");
     ctx.fillStyle = beam;
     ctx.fillRect(-width * 1.5, -height * 1.5, width * 3, height * 3);
     ctx.restore();
   } else if (preset.overlayPattern === "velvet_glow") {
-    // Soft Velvet Cat Eye Dome
     const velvet = ctx.createRadialGradient(cx, cy * 0.8, 10, cx, cy, width * 0.75);
     velvet.addColorStop(0, "rgba(255, 255, 255, 0.7)");
     velvet.addColorStop(0.5, "rgba(255, 255, 255, 0.2)");
@@ -359,7 +516,6 @@ export function generateBaseNailImage(
     ctx.fillStyle = velvet;
     ctx.fillRect(0, 0, width, height);
   } else if (preset.overlayPattern === "aura_glow") {
-    // Center Airbrush Aura Blooming Glow
     const aura = ctx.createRadialGradient(cx, cy * 0.9, 10, cx, cy * 0.9, width * 0.55);
     aura.addColorStop(0, preset.secondaryColor || "#FF4081");
     aura.addColorStop(0.55, "rgba(255, 64, 129, 0.45)");
@@ -367,33 +523,30 @@ export function generateBaseNailImage(
     ctx.fillStyle = aura;
     ctx.fillRect(0, 0, width, height);
   } else if (preset.overlayPattern === "glazed_chrome") {
-    // Glazed Pearl Chrome Iridescent Burnish
     const chrome = ctx.createLinearGradient(0, 0, width, height);
-    chrome.addColorStop(0, "rgba(255, 255, 255, 0.65)");
-    chrome.addColorStop(0.3, "rgba(255, 224, 178, 0.35)");
-    chrome.addColorStop(0.7, "rgba(225, 190, 231, 0.35)");
-    chrome.addColorStop(1, "rgba(255, 255, 255, 0.5)");
+    chrome.addColorStop(0, "rgba(255, 255, 255, 0.75)");
+    chrome.addColorStop(0.3, "rgba(255, 224, 178, 0.45)");
+    chrome.addColorStop(0.7, "rgba(225, 190, 231, 0.45)");
+    chrome.addColorStop(1, "rgba(255, 255, 255, 0.6)");
     ctx.fillStyle = chrome;
     ctx.fillRect(0, 0, width, height);
   } else if (preset.overlayPattern === "marble_swirl") {
-    // Marble Quartz Veining
     ctx.save();
-    ctx.strokeStyle = "rgba(100, 100, 100, 0.25)";
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(100, 100, 100, 0.28)";
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.moveTo(width * 0.2, height * 0.1);
     ctx.bezierCurveTo(width * 0.4, height * 0.4, width * 0.7, height * 0.3, width * 0.8, height * 0.7);
     ctx.stroke();
 
-    ctx.strokeStyle = "rgba(255, 215, 0, 0.6)"; // Gold Vein
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255, 215, 0, 0.75)";
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(width * 0.3, height * 0.2);
     ctx.bezierCurveTo(width * 0.5, height * 0.35, width * 0.6, height * 0.6, width * 0.7, height * 0.85);
     ctx.stroke();
     ctx.restore();
   } else if (preset.overlayPattern === "leopard_spots") {
-    // Leopard Spots
     ctx.save();
     const spots = [
       { x: cx - 35, y: cy - 60, r: 14 },
@@ -416,10 +569,35 @@ export function generateBaseNailImage(
     ctx.restore();
   }
 
-  // 4. Specular High-Gloss "Baked" 3D Gel Topcoat
+  // 4. 3D C-CURVE CYLINDRICAL SHADING (Lateral Shadows & Depth)
+  // Left sidewall shadow
+  const leftShadow = ctx.createLinearGradient(0, 0, width * 0.32, 0);
+  leftShadow.addColorStop(0, "rgba(0, 0, 0, 0.22)");
+  leftShadow.addColorStop(0.6, "rgba(0, 0, 0, 0.08)");
+  leftShadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = leftShadow;
+  ctx.fillRect(0, 0, width * 0.35, height);
+
+  // Right sidewall shadow
+  const rightShadow = ctx.createLinearGradient(width, 0, width * 0.68, 0);
+  rightShadow.addColorStop(0, "rgba(0, 0, 0, 0.22)");
+  rightShadow.addColorStop(0.6, "rgba(0, 0, 0, 0.08)");
+  rightShadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = rightShadow;
+  ctx.fillRect(width * 0.65, 0, width * 0.35, height);
+
+  // 5. 3D CUTICLE LUNULA MOON HIGHLIGHT
+  const lunula = ctx.createRadialGradient(cx, height * 0.96, 2, cx, height * 0.96, width * 0.35);
+  lunula.addColorStop(0, "rgba(255, 255, 255, 0.25)");
+  lunula.addColorStop(0.7, "rgba(255, 255, 255, 0.08)");
+  lunula.addColorStop(1, "rgba(255, 255, 255, 0)");
+  ctx.fillStyle = lunula;
+  ctx.fillRect(0, height * 0.7, width, height * 0.3);
+
+  // 6. SPECULAR HIGH-GLOSS "BAKED" 3D GEL TOPCOAT (Curved Vertical Apex Streak)
   const glossGrad = ctx.createLinearGradient(0, 0, width * 0.65, height * 0.85);
-  glossGrad.addColorStop(0, "rgba(255, 255, 255, 0.8)");
-  glossGrad.addColorStop(0.25, "rgba(255, 255, 255, 0.45)");
+  glossGrad.addColorStop(0, "rgba(255, 255, 255, 0.88)");
+  glossGrad.addColorStop(0.25, "rgba(255, 255, 255, 0.48)");
   glossGrad.addColorStop(0.55, "rgba(255, 255, 255, 0.0)");
   glossGrad.addColorStop(1, "rgba(255, 255, 255, 0.22)");
 
@@ -428,7 +606,7 @@ export function generateBaseNailImage(
   ctx.ellipse(width * 0.35, height * 0.38, Math.max(4, width * 0.14), Math.max(12, height * 0.35), -0.12, 0, Math.PI * 2);
   ctx.fill();
 
-  // Apex Glint
+  // Apex Glint Reflection
   const glint = ctx.createRadialGradient(width * 0.32, height * 0.22, 1, width * 0.32, height * 0.22, width * 0.22);
   glint.addColorStop(0, "rgba(255, 255, 255, 0.98)");
   glint.addColorStop(0.4, "rgba(255, 255, 255, 0.45)");

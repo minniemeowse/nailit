@@ -82,12 +82,12 @@ export interface CharmPreset {
 }
 
 export const CHARM_PRESETS: CharmPreset[] = [
-  // 🧸 3D Realistic Resin Figurines & Gummy Bears
+  // 🧸 3D Realistic Resin Figurines & Gummy Bears (Transparent PNGs)
   {
     id: "charm_gummy_amber",
     name: "Amber 3D Party Bear",
     category: "gummy",
-    imageUrl: "/charms/gummy_bear.jpg",
+    imageUrl: "/charms/gummy_bear.png",
     emoji: "🧸",
     color: "#C67D4A",
     glow: "rgba(198, 125, 74, 0.5)",
@@ -97,16 +97,27 @@ export const CHARM_PRESETS: CharmPreset[] = [
     id: "charm_bow_pearl",
     name: "Sculpted Pearl Bow",
     category: "bow",
-    imageUrl: "/charms/pearl_bow.jpg",
+    imageUrl: "/charms/pearl_bow.png",
     emoji: "🎀",
     color: "#FFFFFF",
     glow: "rgba(255, 255, 255, 0.7)",
     description: "3D sculpted acrylic pearl ribbon with crystal center"
   },
   {
+    id: "charm_gem_diamond",
+    name: "Aurora Star Diamond",
+    category: "crystal",
+    imageUrl: "/charms/aurora_crystal.png",
+    emoji: "💎",
+    color: "#E0F7FA",
+    glow: "rgba(0, 229, 255, 0.6)",
+    description: "Faceted aurora glass crystal with spectral refraction"
+  },
+  {
     id: "charm_birthday_cake",
     name: "3D Birthday Cake",
     category: "gummy",
+    imageUrl: "/charms/birthday_cake.png",
     emoji: "🎂",
     color: "#FFF0F5",
     glow: "rgba(255, 182, 193, 0.5)",
@@ -120,15 +131,6 @@ export const CHARM_PRESETS: CharmPreset[] = [
     color: "#80DEEA",
     glow: "rgba(128, 222, 234, 0.5)",
     description: "Candy-wrapped turquoise gift charm"
-  },
-  {
-    id: "charm_gem_diamond",
-    name: "Aurora Star Diamond",
-    category: "crystal",
-    emoji: "💎",
-    color: "#E0F7FA",
-    glow: "rgba(0, 229, 255, 0.6)",
-    description: "Faceted aurora glass crystal with spectral refraction"
   },
   {
     id: "charm_gem_heart",
