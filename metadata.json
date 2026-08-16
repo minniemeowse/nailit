@@ -1,0 +1,6 @@
+{
+  "name": "Nail Design Planner & Patchmaker",
+  "description": "Interactive nail DIY designer featuring manual nail-bed image scanning, layered dissection, 3D gems decoration, Pinterest-style reference feeds with username searches, and custom user profile collections.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
